@@ -242,7 +242,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "modular"
+name = "modular-native"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "futures",
+ "modular-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "modular-sys",
+ "parking_lot",
+ "tokio",
+ "tower",
+]
+
+[[package]]
+name = "modular-rs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -261,16 +274,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "modular-native"
+name = "modular-rs"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a47e584ec92df3832fa80e54ab3a1d5262ed1fe33b4c07b7ef533dbc5fca9964"
 dependencies = [
+ "anyhow",
+ "async-channel",
+ "async-trait",
  "bytes",
  "futures",
- "modular",
- "modular-sys",
+ "futures-util",
+ "nom",
  "parking_lot",
+ "thiserror",
  "tokio",
  "tower",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
