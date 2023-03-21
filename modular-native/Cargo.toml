@@ -9,8 +9,8 @@ license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-modular-rs = "0.1"
-modular-sys = "0.1"
+modular-rs = { version = "0.1", path = "../modular" }
+modular-sys = { version = "0.1", path = "../modular-sys" }
 parking_lot = "0.12"
 tower = "0.4"
 
