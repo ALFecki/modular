@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "modular",
+    "modular-native",
+    "modular-sys",
+]

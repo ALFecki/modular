@@ -1,0 +1,30 @@
+[package]
+name = "modular"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+parking_lot = { version = "0.12", features = [ "send_guard" ] }
+bytes = "1"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+thiserror = "1"
+anyhow = "1"
+nom = "7"
+futures = { version = "0.3", features = [ "executor" ] }
+async-channel = "1"
+
+tower = { version = "0.4", features = [ "util" ] }
+futures-util = "0.3"
+
+[target.'cfg(not(any(target_family = "wasm")))'.dependencies]
+tokio = { version = "1", features = [ "full" ] }
+
+[target.'cfg(any(target_family = "wasm"))'.dependencies]
+tokio = { version = "1", features = [ "rt", "macros", "time" ] }
+
+[lib]
+crate-type = [ "cdylib", "lib" ]
