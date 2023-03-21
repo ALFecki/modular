@@ -248,7 +248,7 @@ dependencies = [
  "bytes",
  "futures",
  "modular-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "modular-sys",
+ "modular-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot",
  "tokio",
  "tower",
@@ -308,6 +308,12 @@ dependencies = [
  "tokio",
  "tower",
 ]
+
+[[package]]
+name = "modular-sys"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15a976e9320a5c57409a24ec38b3f9ecbe5ad25cc57c2d30d1ffc5d56ef6f7ca"
 
 [[package]]
 name = "nom"
