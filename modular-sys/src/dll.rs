@@ -7,7 +7,6 @@ use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 use futures_util::{FutureExt, Stream, StreamExt};
-use libloading::Library;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::collections::VecDeque;
