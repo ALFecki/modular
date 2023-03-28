@@ -1,4 +1,5 @@
 use crate::core::{BoxModule, Modular, Module};
+use crate::cstr_to_string;
 use crate::{
     CBuf, CCallback, CModule, CModuleError, CModuleRef, CSubscribe, CSubscriptionRef,
     NativeModularVTable, Obj,
@@ -7,6 +8,7 @@ use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 use futures_util::{FutureExt, Stream, StreamExt};
+use libloading::Library;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::collections::VecDeque;
@@ -253,7 +255,13 @@ where
 
                     (callback.success)(callback.ptr, buf)
                 },
-                Err(err) => {}
+                Err(err) => {
+                    // LibraryError::CustomError(CustomLibraryError{
+                    //     code: err.code,
+                    //     name: cstr_to_string!(err.name),
+                    //     message: cstr_to_string!(err.message)
+                    // })
+                }
             }
         });
     }
@@ -329,11 +337,14 @@ impl Module for ModuleRef {
 
 struct ModuleCallbackFutureState {
     waker: Waker,
-    data: Arc<Mutex<Option<Result<Bytes, ()>>>>,
+    data: Arc<Mutex<Option<Result<Bytes, LibraryError>>>>,
 }
 
 impl ModuleCallbackFutureState {
-    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<Bytes, ()>>(obj: Obj, f: F) {
+    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<Bytes, LibraryError>>(
+        obj: Obj,
+        f: F,
+    ) {
         let this = Box::from_raw(obj.0 as *mut Self);
         {
             let this = &*this;
@@ -350,15 +361,21 @@ impl ModuleCallbackFutureState {
     }
 
     unsafe extern "system" fn unknown_method(this: Obj) {
-        Self::with(this, |state| Err(()));
+        Self::with(this, |state| Err(LibraryError::UnknownMethod));
     }
 
     unsafe extern "system" fn error(this: Obj, error: CModuleError) {
-        Self::with(this, |state| Err(()));
+        Self::with(this, |state| {
+            Err(LibraryError::CustomError(CustomLibraryError {
+                code: error.code,
+                name: cstr_to_string!(error.name),
+                message: cstr_to_string!(error.message),
+            }))
+        });
     }
 
     unsafe extern "system" fn destroyed(this: Obj) {
-        Self::with(this, |state| Err(()));
+        Self::with(this, |state| Err(LibraryError::Destroyed));
     }
 }
 
@@ -367,7 +384,7 @@ where
     F: FnOnce(ModuleCallbackFutureState),
 {
     f: Option<F>,
-    state: Arc<Mutex<Option<Result<Bytes, ()>>>>,
+    state: Arc<Mutex<Option<Result<Bytes, LibraryError>>>>,
 }
 
 impl<F> ModuleCallbackFuture<F>
@@ -383,7 +400,7 @@ where
 }
 
 impl<F: FnOnce(ModuleCallbackFutureState) + Unpin> Future for ModuleCallbackFuture<F> {
-    type Output = Result<Bytes, ()>;
+    type Output = Result<Bytes, LibraryError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(v) = self.f.take() {
@@ -407,4 +424,16 @@ impl<F: FnOnce(ModuleCallbackFutureState) + Unpin> Future for ModuleCallbackFutu
             Poll::Pending
         }
     }
+}
+
+pub enum LibraryError {
+    UnknownMethod,
+    CustomError(CustomLibraryError),
+    Destroyed,
+}
+
+pub struct CustomLibraryError {
+    pub code: i32,
+    pub name: Option<String>,
+    pub message: Option<String>,
 }
