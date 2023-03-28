@@ -7,13 +7,6 @@ use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::ptr::{null, null_mut};
 
-#[macro_export]
-macro_rules! cstr_to_string {
-    ($arg:expr) => {
-        unsafe { cstr_to_str!($arg).map(|i| i.to_string()) }
-    };
-}
-
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct Obj(pub *mut c_void);

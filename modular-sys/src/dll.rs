@@ -1,5 +1,4 @@
 use crate::core::{BoxModule, Modular, Module};
-use crate::cstr_to_string;
 use crate::{
     CBuf, CCallback, CModule, CModuleError, CModuleRef, CSubscribe, CSubscriptionRef,
     NativeModularVTable, Obj,
@@ -15,6 +14,7 @@ use std::collections::VecDeque;
 use std::ffi::{c_char, CStr, CString};
 use std::future::Future;
 use std::pin::Pin;
+use std::ptr::null;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use tokio::runtime::Handle;
@@ -93,7 +93,7 @@ impl Modular for LibraryModular {
 
     fn register_module<S>(&self, name: &str, service: S)
     where
-        S: Service<(String, Bytes), Response = Bytes, Error = ()> + 'static + Send + Sync,
+        S: Service<(String, Bytes), Response = Bytes, Error = LibraryError> + 'static + Send + Sync,
         S::Future: Send + Sync + 'static,
     {
         let inner = NativeModuleInner { service };
@@ -227,8 +227,8 @@ struct NativeModuleInner<S> {
 
 impl<S> NativeModule<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error = ()> + Send + Sync + 'static,
-    S::Future: Future<Output = Result<Bytes, ()>> + Send + Sync + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = LibraryError> + Send + Sync + 'static,
+    S::Future: Future<Output = Result<Bytes, LibraryError>> + Send + Sync + 'static,
 {
     unsafe extern "system" fn on_invoke(
         ptr: Obj,
@@ -255,13 +255,23 @@ where
 
                     (callback.success)(callback.ptr, buf)
                 },
-                Err(err) => {
-                    // LibraryError::CustomError(CustomLibraryError{
-                    //     code: err.code,
-                    //     name: cstr_to_string!(err.name),
-                    //     message: cstr_to_string!(err.message)
-                    // })
-                }
+                Err(error) => match error {
+                    LibraryError::UnknownMethod => (callback.unknown_method)(callback.ptr),
+                    LibraryError::CustomError(err) => {
+                        let name = err.name.map(|v| CString::new(v).unwrap());
+                        let message = err.message.map(|v| CString::new(v).unwrap());
+
+                        (callback.error)(
+                            callback.ptr,
+                            CModuleError {
+                                code: err.code,
+                                name: name.as_ref().map(|i| i.as_ptr()).unwrap_or(null()),
+                                message: message.as_ref().map(|i| i.as_ptr()).unwrap_or(null()),
+                            },
+                        )
+                    }
+                    LibraryError::Destroyed => (callback.destroyed)(callback.ptr),
+                },
             }
         });
     }
@@ -273,11 +283,11 @@ where
 
 impl<S> Service<(String, Bytes)> for NativeModuleInner<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error = ()> + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = LibraryError> + 'static,
     S::Future: Send + Sync + 'static,
 {
     type Response = Bytes;
-    type Error = ();
+    type Error = LibraryError;
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -306,7 +316,7 @@ impl Clone for ModuleRef {
 }
 
 impl Module for ModuleRef {
-    type Future = BoxFuture<'static, Result<Bytes, ()>>;
+    type Future = BoxFuture<'static, Result<Bytes, LibraryError>>;
 
     fn invoke(&self, method: &str, data: Bytes) -> Self::Future {
         let method = CString::new(method).unwrap();
@@ -368,8 +378,18 @@ impl ModuleCallbackFutureState {
         Self::with(this, |state| {
             Err(LibraryError::CustomError(CustomLibraryError {
                 code: error.code,
-                name: cstr_to_string!(error.name),
-                message: cstr_to_string!(error.message),
+                name: if !error.name.is_null() {
+                    let temp_name = Some(CStr::from_ptr(error.name).to_string_lossy());
+                    temp_name.map(|i| i.to_string())
+                } else {
+                    None
+                },
+                message: if !error.message.is_null() {
+                    let temp_name = Some(CStr::from_ptr(error.message).to_string_lossy());
+                    temp_name.map(|i| i.to_string())
+                } else {
+                    None
+                },
             }))
         });
     }
