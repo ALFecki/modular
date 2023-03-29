@@ -19,6 +19,7 @@ anyhow = "1"
 nom = "7"
 futures = { version = "0.3", features = [ "executor" ] }
 async-channel = "1"
+modular-core = {version = "0.1", path = "../modular-core"}
 
 tower = { version = "0.4", features = [ "util" ] }
 futures-util = "0.3"

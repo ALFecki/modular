@@ -5,7 +5,6 @@ mod module;
 use crate::module::NativeCModule;
 use bytes::Bytes;
 use futures::Sink;
-use modular_rs::core::error::{ModuleError, SubscribeError};
 use modular_rs::core::modules::{Module, ModuleRequest, RegistryError};
 use modular_rs::core::Modular;
 use modular_sys::*;
@@ -19,6 +18,7 @@ use std::ptr::{drop_in_place, null, null_mut};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::runtime::Runtime;
+use modular_core::core::error::*;
 
 #[macro_export]
 macro_rules! cstr_to_string {

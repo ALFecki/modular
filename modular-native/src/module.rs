@@ -1,7 +1,6 @@
 use crate::cstr_to_string;
 use crate::*;
 use bytes::Bytes;
-use modular_rs::core::error::{CustomModuleError, ModuleError};
 use modular_rs::core::modules::{ModuleRequest, ModuleResponse};
 use modular_sys::*;
 use parking_lot::RwLock;
@@ -10,6 +9,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll, Waker};
+use modular_core::core::error::*;
 
 #[repr(transparent)]
 pub struct NativeCModule(pub CModule);

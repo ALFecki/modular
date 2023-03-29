@@ -242,13 +242,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "modular-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "futures",
+ "futures-util",
+ "tower",
+]
+
+[[package]]
 name = "modular-native"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "futures",
- "modular-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "modular-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "modular-core",
+ "modular-rs",
+ "modular-sys",
  "parking_lot",
  "tokio",
  "tower",
@@ -264,27 +276,7 @@ dependencies = [
  "bytes",
  "futures",
  "futures-util",
- "nom",
- "parking_lot",
- "thiserror",
- "tokio",
- "tower",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "modular-rs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a47e584ec92df3832fa80e54ab3a1d5262ed1fe33b4c07b7ef533dbc5fca9964"
-dependencies = [
- "anyhow",
- "async-channel",
- "async-trait",
- "bytes",
- "futures",
- "futures-util",
+ "modular-core",
  "nom",
  "parking_lot",
  "thiserror",
@@ -303,17 +295,12 @@ dependencies = [
  "bytes",
  "futures-util",
  "libloading",
+ "modular-core",
  "once_cell",
  "parking_lot",
  "tokio",
  "tower",
 ]
-
-[[package]]
-name = "modular-sys"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15a976e9320a5c57409a24ec38b3f9ecbe5ad25cc57c2d30d1ffc5d56ef6f7ca"
 
 [[package]]
 name = "nom"

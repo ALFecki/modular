@@ -2,8 +2,9 @@ use bytes::Bytes;
 use futures::Sink;
 use std::sync::Arc;
 use tower::Service;
+use modular_core::core::error::*;
 
-pub mod error;
+
 pub mod events;
 mod module;
 mod modules_registry;
@@ -19,7 +20,6 @@ pub mod modules {
 }
 
 use crate::core::pattern::Pattern;
-use error::*;
 use modules::*;
 
 #[derive(Default)]

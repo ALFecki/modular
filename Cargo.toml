@@ -3,4 +3,5 @@ members = [
     "modular",
     "modular-native",
     "modular-sys",
+    "modular-core"
 ]

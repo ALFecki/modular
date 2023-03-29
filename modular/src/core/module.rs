@@ -1,4 +1,3 @@
-use crate::core::error::ModuleError;
 use crate::core::modules::{BoxModuleService, ModuleRequest, ModuleResponse};
 use futures_util::future::BoxFuture;
 use futures_util::TryFutureExt;
@@ -7,6 +6,7 @@ use std::sync::Weak;
 use std::task::{Context, Poll};
 use tokio::sync::Mutex;
 use tower::Service;
+use modular_core::core::error::*;
 
 #[derive(Clone)]
 pub struct Module<Request, Response>(pub(crate) Weak<Mutex<BoxModuleService<Request, Response>>>);
