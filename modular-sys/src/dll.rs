@@ -13,6 +13,7 @@ use std::collections::VecDeque;
 use std::ffi::{c_char, CStr, CString};
 use std::future::Future;
 use std::pin::Pin;
+use std::ptr::null;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use tokio::runtime::Handle;
@@ -91,7 +92,7 @@ impl Modular for LibraryModular {
 
     fn register_module<S>(&self, name: &str, service: S)
     where
-        S: Service<(String, Bytes), Response = Bytes, Error = ()> + 'static + Send + Sync,
+        S: Service<(String, Bytes), Response = Bytes, Error = LibraryError> + 'static + Send + Sync,
         S::Future: Send + Sync + 'static,
     {
         let inner = NativeModuleInner { service };
@@ -225,8 +226,8 @@ struct NativeModuleInner<S> {
 
 impl<S> NativeModule<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error = ()> + Send + Sync + 'static,
-    S::Future: Future<Output = Result<Bytes, ()>> + Send + Sync + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = LibraryError> + Send + Sync + 'static,
+    S::Future: Future<Output = Result<Bytes, LibraryError>> + Send + Sync + 'static,
 {
     unsafe extern "system" fn on_invoke(
         ptr: Obj,
@@ -253,7 +254,23 @@ where
 
                     (callback.success)(callback.ptr, buf)
                 },
-                Err(err) => {}
+                Err(error) => match error {
+                    LibraryError::UnknownMethod => (callback.unknown_method)(callback.ptr),
+                    LibraryError::CustomError(err) => {
+                        let name = err.name.map(|v| CString::new(v).unwrap());
+                        let message = err.message.map(|v| CString::new(v).unwrap());
+
+                        (callback.error)(
+                            callback.ptr,
+                            CModuleError {
+                                code: err.code,
+                                name: name.as_ref().map(|i| i.as_ptr()).unwrap_or(null()),
+                                message: message.as_ref().map(|i| i.as_ptr()).unwrap_or(null()),
+                            },
+                        )
+                    }
+                    LibraryError::Destroyed => (callback.destroyed)(callback.ptr),
+                },
             }
         });
     }
@@ -265,11 +282,11 @@ where
 
 impl<S> Service<(String, Bytes)> for NativeModuleInner<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error = ()> + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = LibraryError> + 'static,
     S::Future: Send + Sync + 'static,
 {
     type Response = Bytes;
-    type Error = ();
+    type Error = LibraryError;
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -298,7 +315,7 @@ impl Clone for ModuleRef {
 }
 
 impl Module for ModuleRef {
-    type Future = BoxFuture<'static, Result<Bytes, ()>>;
+    type Future = BoxFuture<'static, Result<Bytes, LibraryError>>;
 
     fn invoke(&self, method: &str, data: Bytes) -> Self::Future {
         let method = CString::new(method).unwrap();
@@ -329,11 +346,14 @@ impl Module for ModuleRef {
 
 struct ModuleCallbackFutureState {
     waker: Waker,
-    data: Arc<Mutex<Option<Result<Bytes, ()>>>>,
+    data: Arc<Mutex<Option<Result<Bytes, LibraryError>>>>,
 }
 
 impl ModuleCallbackFutureState {
-    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<Bytes, ()>>(obj: Obj, f: F) {
+    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<Bytes, LibraryError>>(
+        obj: Obj,
+        f: F,
+    ) {
         let this = Box::from_raw(obj.0 as *mut Self);
         {
             let this = &*this;
@@ -350,15 +370,31 @@ impl ModuleCallbackFutureState {
     }
 
     unsafe extern "system" fn unknown_method(this: Obj) {
-        Self::with(this, |state| Err(()));
+        Self::with(this, |state| Err(LibraryError::UnknownMethod));
     }
 
     unsafe extern "system" fn error(this: Obj, error: CModuleError) {
-        Self::with(this, |state| Err(()));
+        Self::with(this, |state| {
+            Err(LibraryError::CustomError(CustomLibraryError {
+                code: error.code,
+                name: if !error.name.is_null() {
+                    let temp_name = Some(CStr::from_ptr(error.name).to_string_lossy());
+                    temp_name.map(|i| i.to_string())
+                } else {
+                    None
+                },
+                message: if !error.message.is_null() {
+                    let temp_name = Some(CStr::from_ptr(error.message).to_string_lossy());
+                    temp_name.map(|i| i.to_string())
+                } else {
+                    None
+                },
+            }))
+        });
     }
 
     unsafe extern "system" fn destroyed(this: Obj) {
-        Self::with(this, |state| Err(()));
+        Self::with(this, |state| Err(LibraryError::Destroyed));
     }
 }
 
@@ -367,7 +403,7 @@ where
     F: FnOnce(ModuleCallbackFutureState),
 {
     f: Option<F>,
-    state: Arc<Mutex<Option<Result<Bytes, ()>>>>,
+    state: Arc<Mutex<Option<Result<Bytes, LibraryError>>>>,
 }
 
 impl<F> ModuleCallbackFuture<F>
@@ -383,7 +419,7 @@ where
 }
 
 impl<F: FnOnce(ModuleCallbackFutureState) + Unpin> Future for ModuleCallbackFuture<F> {
-    type Output = Result<Bytes, ()>;
+    type Output = Result<Bytes, LibraryError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(v) = self.f.take() {
@@ -407,4 +443,16 @@ impl<F: FnOnce(ModuleCallbackFutureState) + Unpin> Future for ModuleCallbackFutu
             Poll::Pending
         }
     }
+}
+
+pub enum LibraryError {
+    UnknownMethod,
+    CustomError(CustomLibraryError),
+    Destroyed,
+}
+
+pub struct CustomLibraryError {
+    pub code: i32,
+    pub name: Option<String>,
+    pub message: Option<String>,
 }
