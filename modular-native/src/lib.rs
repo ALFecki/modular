@@ -5,7 +5,7 @@ mod module;
 use crate::module::NativeCModule;
 use bytes::Bytes;
 use futures::Sink;
-use modular_rs::core::modules::{Module, ModuleRequest, RegistryError};
+use modular_rs::core::modules::RegistryError;
 use modular_rs::core::Modular;
 use modular_sys::*;
 use parking_lot::RwLock;
@@ -19,6 +19,9 @@ use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::runtime::Runtime;
 use modular_core::core::error::*;
+use modular_core::core::module::Module;
+use modular_core::core::request::ModuleRequest;
+
 
 #[macro_export]
 macro_rules! cstr_to_string {
@@ -304,7 +307,7 @@ pub unsafe extern "system" fn __modular_get_module_ref(
     #[derive(Clone)]
     pub struct RtModule {
         runtime: Weak<Runtime>,
-        module: Module<Bytes, Bytes>,
+        module: modular_rs::core::modules::Module<Bytes, Bytes>,
     }
 
     let name = cstr_to_str!(name).expect("name can't be empty");
