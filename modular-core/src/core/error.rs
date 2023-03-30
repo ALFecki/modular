@@ -15,3 +15,9 @@ pub struct CustomModuleError {
 pub enum SubscribeError {
     InvalidPattern(anyhow::Error),
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum RegistryError {
+    #[error("module already exists")]
+    AlreadyExists,
+}

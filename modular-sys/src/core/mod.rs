@@ -6,6 +6,7 @@ use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 use std::future::Future;
 use modular_core::core::error::ModuleError;
+use modular_core::core::module::Module;
 
 pub type BoxModule = Box<dyn Module<Future = BoxFuture<'static, Result<Bytes, ModuleError>>>>;
 
@@ -23,10 +24,4 @@ pub trait Modular: Send + Sync {
 
     fn get_module(&self, name: &str) -> Option<BoxModule>;
     fn deregister_module(&self, name: &str);
-}
-
-pub trait Module {
-    type Future: Future<Output = Result<Bytes, ModuleError>> + Send + 'static;
-
-    fn invoke(&self, method: &str, data: Bytes) -> Self::Future;
 }

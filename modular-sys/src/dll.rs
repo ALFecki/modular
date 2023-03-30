@@ -20,6 +20,8 @@ use tokio::runtime::Handle;
 use tokio::spawn;
 use tower::Service;
 use modular_core::core::error::*;
+use modular_core::core::request::ModuleRequest;
+use modular_core::core::response::ModuleResponse;
 
 pub struct LibraryModular {
     ptr: Obj,
@@ -112,7 +114,7 @@ impl Modular for LibraryModular {
         let name = CString::new(name.to_string()).unwrap();
 
         unsafe {
-            (self.vtable.register_module)(self.ptr, name.as_ptr(), module, false);
+            (self.vtable.register_module)(self.ptr, name.as_ptr(), module, false); // todo if code != 0 -> RegistryError
         }
     }
 
@@ -316,10 +318,10 @@ impl Clone for ModuleRef {
 }
 
 impl Module for ModuleRef {
-    type Future = BoxFuture<'static, Result<Bytes, ModuleError>>;
+    type Future = BoxFuture<'static, Result<ModuleResponse<Bytes>, ModuleError>>;
 
-    fn invoke(&self, method: &str, data: Bytes) -> Self::Future {
-        let method = CString::new(method).unwrap();
+    async fn invoke(&self, request: ModuleRequest<Bytes>) -> Self::Future {
+        let method = CString::new(request.action).unwrap();
 
         let inner = self.0;
 
@@ -335,8 +337,8 @@ impl Module for ModuleRef {
             };
 
             let buf = CBuf {
-                data: data.as_ptr(),
-                len: data.len(),
+                data: request.body.as_ptr(),
+                len: request.body.len(),
             };
 
             unsafe { (inner.vtable.invoke)(inner.ptr, method.as_ptr(), buf, callback) }

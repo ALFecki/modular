@@ -1,4 +1,4 @@
-use crate::core::error::ModuleError;
+use crate::core::error::*;
 use crate::core::module::Module;
 use crate::core::request::ModuleRequest;
 use crate::core::response::ModuleResponse;
