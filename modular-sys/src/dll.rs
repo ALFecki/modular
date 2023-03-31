@@ -104,9 +104,9 @@ impl modular_core::Modular for LibraryModular {
     where
         S: Service<Request> + Send + 'static,
         Request: From<ModuleRequest<Bytes>> + Send + 'static,
-        tower_service::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
-        tower_service::Error: Into<ModuleError> + Send + 'static,
-        tower_service::Future: Send + Sync + 'static,
+        S::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
+        S::Error: Into<ModuleError> + Send + 'static,
+        S::Future: Send + Sync + 'static,
     {
         let inner = NativeModuleInner { service };
         let module = NativeModule {

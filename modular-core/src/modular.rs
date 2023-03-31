@@ -16,7 +16,7 @@ pub trait Modular<Sub = ()>: Send + Sync {
 
     fn subscribe<S, Err>(&self, topic: &str, sink: S) -> Self::Subscribe
         where
-            S: Sink<(String, Bytes), Error = Err> + Send + Sync + 'static;
+            S: Sink<ModuleRequest<Bytes>, Error = Err> + Send + Sync + 'static;
     fn publish(&self, topic: &str, data: Bytes);
 
     fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
