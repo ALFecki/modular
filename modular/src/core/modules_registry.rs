@@ -1,23 +1,17 @@
 use crate::core::module::{Module, ModuleService};
 
+use modular_core::core::error::{ModuleError, RegistryError};
+use modular_core::core::request::ModuleRequest;
+use modular_core::core::response::ModuleResponse;
 use parking_lot::RwLock;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower::Service;
-use modular_core::core::error::ModuleError;
-use modular_core::core::request::ModuleRequest;
-use modular_core::core::response::ModuleResponse;
 
 pub(crate) type BoxModuleService<Req, Resp> =
     tower::util::BoxService<ModuleRequest<Req>, ModuleResponse<Resp>, ModuleError>;
-
-#[derive(thiserror::Error, Debug)]
-pub enum RegistryError {
-    #[error("module already exists")]
-    AlreadyExists,
-}
 
 pub struct ModulesRegistry<Req, Resp> {
     modules: RwLock<HashMap<String, Arc<Mutex<BoxModuleService<Req, Resp>>>>>,

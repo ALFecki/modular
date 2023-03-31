@@ -1,22 +1,23 @@
 use bytes::Bytes;
 use futures::Sink;
+use futures_util::stream::BoxStream;
+use modular_core::core::error::*;
+use modular_core::core::request::ModuleRequest;
+use modular_core::core::response::ModuleResponse;
+use modular_core::core::BoxModule;
 use std::sync::Arc;
 use tower::Service;
-use modular_core::core::error::*;
-
 
 pub mod events;
 mod module;
 mod modules_registry;
 pub mod pattern;
-mod req;
-mod response;
+// mod req;
+// mod response;
 
 pub mod modules {
     pub use super::module::*;
     pub use super::modules_registry::*;
-    pub use super::req::*;
-    pub use super::response::*;
 }
 
 use crate::core::pattern::Pattern;
@@ -28,19 +29,47 @@ pub struct Modular {
     events: Arc<events::EventsManager<Bytes>>,
 }
 
-impl Modular {
-    pub fn register_module<S, Request>(&self, name: &str, svc: S) -> Result<(), RegistryError>
+impl modular_core::core::Modular for Modular {
+    type Module = Option<Box<Module<Bytes, Bytes>>>;
+    type Subscribe = Result<(), SubscribeError>;
+
+    fn subscribe<S, Err>(&self, topic: &str, sink: S) -> Self::Subscribe where S: Sink<(String, Bytes), Error=Err> + Send + Sync + 'static {
+        let pattern = Pattern::parse(topic).map_err(SubscribeError::InvalidPattern)?;
+        self.events.subscribe(pattern, sink);
+        Ok(())
+    }
+
+
+    fn publish(&self, topic: &str, data: Bytes) {
+        if topic.starts_with("$.sys.") {
+                    return;
+        }
+
+        self.events.publish(topic, data);
+    }
+
+    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
     where
         S: Service<Request> + Send + 'static,
         Request: From<ModuleRequest<Bytes>> + Send + 'static,
-        S::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
-        S::Error: Into<ModuleError> + Send + 'static,
-        S::Future: Send + Sync + 'static,
+        tower_service::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
+        tower_service::Error: Into<ModuleError> + Send + 'static,
+        tower_service::Future: Send + Sync + 'static,
     {
-        self.modules.register(name, svc)?;
-
+        self.modules.register(name, service)?;
         Ok(())
     }
+
+    fn get_module(&self, name: &str) -> Self::Module {
+        self.modules.get(name).map(|f| Box::new(f))
+    }
+
+    fn deregister_module(&self, name: &str) {
+        self.modules.remove(name);
+    }
+}
+
+impl Modular {
 
     pub fn register_or_replace_module<S, Request>(&self, name: &str, svc: S)
     where
@@ -53,33 +82,4 @@ impl Modular {
         self.modules.register_or_replace(name, svc);
     }
 
-    pub fn remove_module(&self, name: &str) {
-        self.modules.remove(name);
-    }
-
-    pub fn get_module(&self, name: &str) -> Option<Module<Bytes, Bytes>> {
-        self.modules.get(name)
-    }
-
-    pub fn subscribe<S, Err>(&self, name: &str, sink: S) -> Result<(), SubscribeError>
-    where
-        S: Sink<(String, Bytes), Error = Err> + Send + Sync + 'static,
-    {
-        let pattern = Pattern::parse(name).map_err(SubscribeError::InvalidPattern)?;
-        self.events.subscribe(pattern, sink);
-
-        Ok(())
-    }
-
-    pub fn publish_event<E: Into<Bytes>>(&self, path: &str, event: E) {
-        if path.starts_with("$.sys.") {
-            return;
-        }
-
-        self.publish_event_inner(path, event.into());
-    }
-
-    fn publish_event_inner(&self, path: &str, event: Bytes) {
-        self.events.publish(path, event);
-    }
 }

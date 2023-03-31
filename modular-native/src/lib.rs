@@ -5,12 +5,16 @@ mod module;
 use crate::module::NativeCModule;
 use bytes::Bytes;
 use futures::Sink;
+use modular_core::core::error::*;
+use modular_core::core::module::Module;
+use modular_core::core::request::ModuleRequest;
 use modular_rs::core::modules::RegistryError;
-use modular_rs::core::Modular;
+
 use modular_sys::*;
 use parking_lot::RwLock;
 use std::ffi::{CStr, CString};
 use std::future::Future;
+use std::ops::Deref;
 use std::os::raw::c_char;
 use std::panic::catch_unwind;
 use std::pin::Pin;
@@ -18,10 +22,7 @@ use std::ptr::{drop_in_place, null, null_mut};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::runtime::Runtime;
-use modular_core::core::error::*;
-use modular_core::core::module::Module;
-use modular_core::core::request::ModuleRequest;
-
+use modular_core::core::Modular;
 
 #[macro_export]
 macro_rules! cstr_to_string {
@@ -43,7 +44,7 @@ macro_rules! cstr_to_str {
 
 pub struct NativeModular {
     tokio_runtime: Arc<Runtime>,
-    modular: Modular,
+    modular: modular_rs::core::Modular,
 }
 
 #[repr(C)]
@@ -281,6 +282,7 @@ pub unsafe extern "system" fn __modular_register_module(
         Ok(_) => 0,
         Err(err) => match err {
             RegistryError::AlreadyExists => -1,
+            RegistryError::RegistrationError => -2 // ???
         },
     }
 }
@@ -320,7 +322,7 @@ pub unsafe extern "system" fn __modular_get_module_ref(
 
     let module = RtModule {
         runtime: Arc::downgrade(&modular.tokio_runtime),
-        module,
+        module: *module.deref().clone(),
     };
 
     unsafe extern "system" fn clone(ptr: Obj) -> CModuleRef {

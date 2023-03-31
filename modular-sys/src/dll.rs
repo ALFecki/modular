@@ -6,7 +6,10 @@ use crate::{
 use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
-use futures_util::{FutureExt, Stream, StreamExt};
+use futures_util::{FutureExt, Sink, Stream, StreamExt};
+use modular_core::core::error::*;
+use modular_core::core::request::ModuleRequest;
+use modular_core::core::response::ModuleResponse;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::collections::VecDeque;
@@ -19,9 +22,6 @@ use std::task::{Context, Poll, Waker};
 use tokio::runtime::Handle;
 use tokio::spawn;
 use tower::Service;
-use modular_core::core::error::*;
-use modular_core::core::request::ModuleRequest;
-use modular_core::core::response::ModuleResponse;
 
 pub struct LibraryModular {
     ptr: Obj,
@@ -52,8 +52,11 @@ impl LibraryModular {
     }
 }
 
-impl Modular for LibraryModular {
-    fn subscribe(&self, topic: &str) -> anyhow::Result<BoxStream<'static, (String, Bytes)>> {
+impl modular_core::core::Modular for LibraryModular {
+    type Module = Option<Box<ModuleRef>>;
+    type Subscribe = Result<BoxStream<'static, (String, Bytes)>, SubscribeError>;
+
+    fn subscribe<S, Err>(&self, topic: &str, _sink: S) -> Self::Subscribe where S: Sink<(String, Bytes), Error=Err> + Send + Sync + 'static {
         let topic = CString::new(topic.to_string()).unwrap();
         let sink = NativeSubscriberSink {
             state: Arc::new(Mutex::new(SubscriberState {
@@ -93,11 +96,7 @@ impl Modular for LibraryModular {
         unsafe { (self.vtable.publish)(self.ptr, topic.as_ptr(), buf) }
     }
 
-    fn register_module<S>(&self, name: &str, service: S)
-    where
-        S: Service<(String, Bytes), Response = Bytes, Error =ModuleError> + 'static + Send + Sync,
-        S::Future: Send + Sync + 'static,
-    {
+    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError> where S: Service<Request> + Send + 'static, Request: From<ModuleRequest<Bytes>> + Send + 'static, tower_service::Response: Into<ModuleResponse<Bytes>> + Send + 'static, tower_service::Error: Into<ModuleError> + Send + 'static, tower_service::Future: Send + Sync + 'static {
         let inner = NativeModuleInner { service };
         let module = NativeModule {
             inner: Arc::new(Mutex::new(inner)),
@@ -114,11 +113,14 @@ impl Modular for LibraryModular {
         let name = CString::new(name.to_string()).unwrap();
 
         unsafe {
-            (self.vtable.register_module)(self.ptr, name.as_ptr(), module, false); // todo if code != 0 -> RegistryError
+            if (self.vtable.register_module)(self.ptr, name.as_ptr(), module, false) != 0 {
+                Err(RegistryError::RegistrationError)
+            }
+            Ok(())
         }
     }
 
-    fn get_module(&self, name: &str) -> Option<BoxModule> {
+    fn get_module(&self, name: &str) -> Self::Module {
         let name = CString::new(name.to_string()).unwrap();
         let module = unsafe { (self.vtable.get_module_ref)(self.ptr, name.as_ptr()) };
 
@@ -229,7 +231,7 @@ struct NativeModuleInner<S> {
 
 impl<S> NativeModule<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error =ModuleError> + Send + Sync + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = ModuleError> + Send + Sync + 'static,
     S::Future: Future<Output = Result<Bytes, ModuleError>> + Send + Sync + 'static,
 {
     unsafe extern "system" fn on_invoke(
@@ -285,7 +287,7 @@ where
 
 impl<S> Service<(String, Bytes)> for NativeModuleInner<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error =ModuleError> + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = ModuleError> + 'static,
     S::Future: Send + Sync + 'static,
 {
     type Response = Bytes;
@@ -353,10 +355,7 @@ struct ModuleCallbackFutureState {
 }
 
 impl ModuleCallbackFutureState {
-    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<Bytes, ModuleError>>(
-        obj: Obj,
-        f: F,
-    ) {
+    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<Bytes, ModuleError>>(obj: Obj, f: F) {
         let this = Box::from_raw(obj.0 as *mut Self);
         {
             let this = &*this;
