@@ -56,7 +56,10 @@ impl modular_core::core::Modular for LibraryModular {
     type Module = Option<Box<ModuleRef>>;
     type Subscribe = Result<BoxStream<'static, (String, Bytes)>, SubscribeError>;
 
-    fn subscribe<S, Err>(&self, topic: &str, _sink: S) -> Self::Subscribe where S: Sink<(String, Bytes), Error=Err> + Send + Sync + 'static {
+    fn subscribe<S, Err>(&self, topic: &str, _sink: S) -> Self::Subscribe
+    where
+        S: Sink<(String, Bytes), Error = Err> + Send + Sync + 'static,
+    {
         let topic = CString::new(topic.to_string()).unwrap();
         let sink = NativeSubscriberSink {
             state: Arc::new(Mutex::new(SubscriberState {
@@ -96,7 +99,14 @@ impl modular_core::core::Modular for LibraryModular {
         unsafe { (self.vtable.publish)(self.ptr, topic.as_ptr(), buf) }
     }
 
-    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError> where S: Service<Request> + Send + 'static, Request: From<ModuleRequest<Bytes>> + Send + 'static, tower_service::Response: Into<ModuleResponse<Bytes>> + Send + 'static, tower_service::Error: Into<ModuleError> + Send + 'static, tower_service::Future: Send + Sync + 'static {
+    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
+    where
+        S: Service<Request> + Send + 'static,
+        Request: From<ModuleRequest<Bytes>> + Send + 'static,
+        tower_service::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
+        tower_service::Error: Into<ModuleError> + Send + 'static,
+        tower_service::Future: Send + Sync + 'static,
+    {
         let inner = NativeModuleInner { service };
         let module = NativeModule {
             inner: Arc::new(Mutex::new(inner)),

@@ -33,16 +33,18 @@ impl modular_core::core::Modular for Modular {
     type Module = Option<Box<Module<Bytes, Bytes>>>;
     type Subscribe = Result<(), SubscribeError>;
 
-    fn subscribe<S, Err>(&self, topic: &str, sink: S) -> Self::Subscribe where S: Sink<(String, Bytes), Error=Err> + Send + Sync + 'static {
+    fn subscribe<S, Err>(&self, topic: &str, sink: S) -> Self::Subscribe
+    where
+        S: Sink<(String, Bytes), Error = Err> + Send + Sync + 'static,
+    {
         let pattern = Pattern::parse(topic).map_err(SubscribeError::InvalidPattern)?;
         self.events.subscribe(pattern, sink);
         Ok(())
     }
 
-
     fn publish(&self, topic: &str, data: Bytes) {
         if topic.starts_with("$.sys.") {
-                    return;
+            return;
         }
 
         self.events.publish(topic, data);
@@ -70,7 +72,6 @@ impl modular_core::core::Modular for Modular {
 }
 
 impl Modular {
-
     pub fn register_or_replace_module<S, Request>(&self, name: &str, svc: S)
     where
         S: Service<Request> + Send + 'static,
@@ -81,5 +82,4 @@ impl Modular {
     {
         self.modules.register_or_replace(name, svc);
     }
-
 }

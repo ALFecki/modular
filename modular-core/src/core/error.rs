@@ -21,5 +21,5 @@ pub enum RegistryError {
     #[error("module already exists")]
     AlreadyExists,
     #[error("something with module registration")]
-    RegistrationError
+    RegistrationError,
 }

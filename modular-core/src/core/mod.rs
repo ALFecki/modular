@@ -1,4 +1,3 @@
-use std::future::Future;
 use crate::core::error::*;
 use crate::core::module::Module;
 use crate::core::request::ModuleRequest;
@@ -6,6 +5,7 @@ use crate::core::response::ModuleResponse;
 use bytes::Bytes;
 use futures::Sink;
 use futures_util::future::BoxFuture;
+use std::future::Future;
 use tower::Service;
 
 pub mod error;
