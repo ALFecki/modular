@@ -53,9 +53,9 @@ impl modular_core::core::Modular for Modular {
     where
         S: Service<Request> + Send + 'static,
         Request: From<ModuleRequest<Bytes>> + Send + 'static,
-        tower_service::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
-        tower_service::Error: Into<ModuleError> + Send + 'static,
-        tower_service::Future: Send + Sync + 'static,
+        S::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
+        S::Error: Into<ModuleError> + Send + 'static,
+        S::Future: Send + Sync + 'static,
     {
         self.modules.register(name, service)?;
         Ok(())
