@@ -7,9 +7,9 @@ use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 use futures_util::{FutureExt, Sink, Stream, StreamExt};
-use modular_core::core::error::*;
-use modular_core::core::request::ModuleRequest;
-use modular_core::core::response::ModuleResponse;
+use modular_core::error::*;
+use modular_core::request::ModuleRequest;
+use modular_core::response::ModuleResponse;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::collections::VecDeque;
@@ -22,6 +22,7 @@ use std::task::{Context, Poll, Waker};
 use tokio::runtime::Handle;
 use tokio::spawn;
 use tower::Service;
+use modular_core::module::Module;
 
 pub struct LibraryModular {
     ptr: Obj,
@@ -52,7 +53,7 @@ impl LibraryModular {
     }
 }
 
-impl modular_core::core::Modular for LibraryModular {
+impl modular_core::Modular for LibraryModular {
     type Module = Option<Box<ModuleRef>>;
     type Subscribe = Result<BoxStream<'static, (String, Bytes)>, SubscribeError>;
 

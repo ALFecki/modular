@@ -1,8 +1,8 @@
 use crate::core::module::{Module, ModuleService};
 
-use modular_core::core::error::{ModuleError, RegistryError};
-use modular_core::core::request::ModuleRequest;
-use modular_core::core::response::ModuleResponse;
+use modular_core::error::{ModuleError, RegistryError};
+use modular_core::request::ModuleRequest;
+use modular_core::response::ModuleResponse;
 use parking_lot::RwLock;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;

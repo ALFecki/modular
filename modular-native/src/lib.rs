@@ -5,12 +5,12 @@ mod module;
 use crate::module::NativeCModule;
 use bytes::Bytes;
 use futures::Sink;
-use modular_core::core::error::*;
-use modular_core::core::module::Module;
-use modular_core::core::request::ModuleRequest;
+use modular_core::error::*;
+use modular_core::module::Module;
+use modular_core::request::ModuleRequest;
 use modular_rs::core::modules::RegistryError;
 
-use modular_core::core::Modular;
+use modular_core::Modular;
 use modular_sys::*;
 use parking_lot::RwLock;
 use std::ffi::{CStr, CString};
@@ -23,6 +23,7 @@ use std::ptr::{drop_in_place, null, null_mut};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::runtime::Runtime;
+use modular_rs::core::Modular;
 
 #[macro_export]
 macro_rules! cstr_to_string {
@@ -44,7 +45,7 @@ macro_rules! cstr_to_str {
 
 pub struct NativeModular {
     tokio_runtime: Arc<Runtime>,
-    modular: modular_rs::core::Modular,
+    modular: Modular,
 }
 
 #[repr(C)]

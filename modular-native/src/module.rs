@@ -1,8 +1,8 @@
 use crate::cstr_to_string;
 use crate::*;
 use bytes::Bytes;
-use modular_core::core::error::*;
-use modular_core::core::response::ModuleResponse;
+use modular_core::error::*;
+use modular_core::response::ModuleResponse;
 use modular_rs::core::modules::{ModuleRequest, ModuleResponse};
 use modular_sys::*;
 use parking_lot::RwLock;

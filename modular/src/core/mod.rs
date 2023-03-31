@@ -1,10 +1,9 @@
 use bytes::Bytes;
 use futures::Sink;
-use futures_util::stream::BoxStream;
-use modular_core::core::error::*;
-use modular_core::core::request::ModuleRequest;
-use modular_core::core::response::ModuleResponse;
-use modular_core::core::BoxModule;
+use modular_core::error::*;
+use modular_core::request::ModuleRequest;
+use modular_core::response::ModuleResponse;
+use modular_core::BoxModule;
 use std::sync::Arc;
 use tower::Service;
 

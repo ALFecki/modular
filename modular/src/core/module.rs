@@ -1,10 +1,10 @@
 use crate::core::modules::BoxModuleService;
 use futures_util::future::BoxFuture;
 use futures_util::TryFutureExt;
-use modular_core::core::error::*;
-use modular_core::core::module;
-use modular_core::core::request::ModuleRequest;
-use modular_core::core::response::ModuleResponse;
+use modular_core::error::*;
+use modular_core::module;
+use modular_core::request::ModuleRequest;
+use modular_core::response::ModuleResponse;
 use std::marker::PhantomData;
 use std::sync::Weak;
 use std::task::{Context, Poll};

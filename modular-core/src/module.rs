@@ -1,6 +1,6 @@
-use crate::core::error::ModuleError;
-use crate::core::request::ModuleRequest;
-use crate::core::response::ModuleResponse;
+use crate::error::ModuleError;
+use crate::request::ModuleRequest;
+use crate::response::ModuleResponse;
 use async_trait::async_trait;
 use bytes::Bytes;
 use std::future::Future;
