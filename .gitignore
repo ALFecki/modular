@@ -2,4 +2,5 @@
 local-test-suit
 .idea/
 Cargo.lock
+**/Cargo.lock
 target/
