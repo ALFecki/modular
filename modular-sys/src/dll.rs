@@ -8,6 +8,7 @@ use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 use futures_util::{FutureExt, Sink, Stream, StreamExt};
 use modular_core::error::*;
+use modular_core::module::Module;
 use modular_core::request::ModuleRequest;
 use modular_core::response::ModuleResponse;
 use once_cell::sync::OnceCell;
@@ -22,7 +23,6 @@ use std::task::{Context, Poll, Waker};
 use tokio::runtime::Handle;
 use tokio::spawn;
 use tower::Service;
-use modular_core::module::Module;
 
 pub struct LibraryModular {
     ptr: Obj,
@@ -331,9 +331,9 @@ impl Clone for ModuleRef {
 }
 
 impl Module for ModuleRef {
-    type Future = BoxFuture<'static, Result<ModuleResponse<Bytes>, ModuleError>>;
+    type Result = BoxFuture<'static, Result<ModuleResponse<Bytes>, ModuleError>>;
 
-    async fn invoke(&self, request: ModuleRequest<Bytes>) -> Self::Future {
+    async fn invoke(&self, request: ModuleRequest<Bytes>) -> Self::Result {
         let method = CString::new(request.action).unwrap();
 
         let inner = self.0;

@@ -2,10 +2,12 @@ use futures::Sink;
 use futures_util::SinkExt;
 use parking_lot::Mutex;
 use std::marker::PhantomData;
+use bytes::Bytes;
 
 use crate::core::pattern::Pattern;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
+use modular_core::request::ModuleRequest;
 
 type EventsHandler<T> = (Pattern, UnboundedSender<(String, T)>);
 

@@ -8,16 +8,18 @@ use modular_core::response::ModuleResponse;
 use std::marker::PhantomData;
 use std::sync::Weak;
 use std::task::{Context, Poll};
+use async_trait::async_trait;
 use tokio::sync::Mutex;
 use tower::Service;
 
 #[derive(Clone)]
 pub struct Module<Request, Response>(pub(crate) Weak<Mutex<BoxModuleService<Request, Response>>>);
 
-impl<Request, Response> module::Module<Request, Response> for Module<Request, Response> {
-    type Future = Result<ModuleResponse<Response>, ModuleError>;
+#[async_trait]
+impl<Request: Send, Response: Send + 'static> module::Module<Request, Response> for Module<Request, Response> {
+    type Result = Result<ModuleResponse<Response>, ModuleError>;
 
-    async fn invoke(&self, request: ModuleRequest<Request>) -> Self::Future {
+    async fn invoke(&self, request: ModuleRequest<Request>) -> Self::Result {
         let module = match self.0.upgrade() {
             Some(v) => v,
             None => {

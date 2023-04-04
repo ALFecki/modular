@@ -3,8 +3,8 @@ use futures::Sink;
 use modular_core::error::*;
 use modular_core::request::ModuleRequest;
 use modular_core::response::ModuleResponse;
-use modular_core::BoxModule;
 use std::sync::Arc;
+use futures_util::SinkExt;
 use tower::Service;
 
 pub mod events;
@@ -28,7 +28,7 @@ pub struct Modular {
     events: Arc<events::EventsManager<Bytes>>,
 }
 
-impl modular_core::core::Modular for Modular {
+impl modular_core::modular::Modular for Modular {
     type Module = Option<Box<Module<Bytes, Bytes>>>;
     type Subscribe = Result<(), SubscribeError>;
 
