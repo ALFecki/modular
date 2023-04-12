@@ -1,7 +1,7 @@
 use crate::cstr_to_string;
 use crate::*;
 use bytes::Bytes;
-use modular_rs::core::error::{CustomModuleError, ModuleError};
+use modular_core::error::{CustomModuleError, ModuleError};
 use modular_rs::core::modules::{ModuleRequest, ModuleResponse};
 use modular_sys::*;
 use parking_lot::RwLock;

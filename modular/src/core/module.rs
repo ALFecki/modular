@@ -1,4 +1,4 @@
-use crate::core::error::ModuleError;
+use modular_core::error::ModuleError;
 use crate::core::modules::{BoxModuleService, ModuleRequest, ModuleResponse};
 use futures_util::future::BoxFuture;
 use futures_util::TryFutureExt;

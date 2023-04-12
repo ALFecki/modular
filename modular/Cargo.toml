@@ -23,6 +23,8 @@ async-channel = "1"
 tower = { version = "0.4", features = [ "util" ] }
 futures-util = "0.3"
 
+modular-core = {version = "0.1", path = "../modular-core"}
+
 [target.'cfg(not(any(target_family = "wasm")))'.dependencies]
 tokio = { version = "1", features = [ "full" ] }
 

@@ -5,7 +5,7 @@ mod module;
 use crate::module::NativeCModule;
 use bytes::Bytes;
 use futures::Sink;
-use modular_rs::core::error::{ModuleError, SubscribeError};
+use modular_core::error::{ModuleError, SubscribeError};
 use modular_rs::core::modules::{Module, ModuleRequest, RegistryError};
 use modular_rs::core::Modular;
 use modular_sys::*;

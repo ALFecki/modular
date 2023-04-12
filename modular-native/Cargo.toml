@@ -17,6 +17,8 @@ tower = "0.4"
 bytes = "1"
 futures = { version = "0.3", features = [  ] }
 
+modular-core = {version = "0.1", path = "../modular-core"}
+
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { version = "1", features = [ "rt", "rt-multi-thread" ] }
 
