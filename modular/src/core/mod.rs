@@ -2,20 +2,16 @@ use bytes::Bytes;
 use futures::Sink;
 use std::sync::Arc;
 use tower::Service;
-use modular_core::error::*;
+use modular_core::modules::*;
 
 pub mod events;
 mod module;
 mod modules_registry;
 pub mod pattern;
-mod req;
-mod response;
 
 pub mod modules {
     pub use super::module::*;
     pub use super::modules_registry::*;
-    pub use super::req::*;
-    pub use super::response::*;
 }
 
 use crate::core::pattern::Pattern;

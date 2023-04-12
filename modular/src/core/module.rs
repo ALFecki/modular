@@ -1,5 +1,6 @@
 use modular_core::error::ModuleError;
-use crate::core::modules::{BoxModuleService, ModuleRequest, ModuleResponse};
+use crate::core::modules::BoxModuleService;
+use modular_core::modules::{ModuleResponse, ModuleRequest};
 use futures_util::future::BoxFuture;
 use futures_util::TryFutureExt;
 use std::marker::PhantomData;
