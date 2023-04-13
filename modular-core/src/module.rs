@@ -1,8 +1,14 @@
+use crate::modules::ModuleRequest;
+use bytes::Bytes;
 use std::future::Future;
-use crate::error::ModuleError;
-use crate::response::ModuleResponse;
 
-pub trait Module<Request, Response> {
-    type Future: Future<Output = Result<ModuleResponse<Response>, ModuleError>> + Send + 'static;
 
+pub trait Module<Request = Bytes, Response = Bytes>
+where
+    Response: Send + 'static,
+    Request: Send,
+{
+    type Future: Future + Send + 'static;
+
+    fn invoke(&self, req: ModuleRequest<Request>) -> Self::Future;
 }

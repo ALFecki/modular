@@ -1,16 +1,15 @@
-use modular_core::error::ModuleError;
 use crate::core::module::{Module, ModuleService};
+use modular_core::error::ModuleError;
+use modular_core::modules::*;
 use parking_lot::RwLock;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower::Service;
-use modular_core::modules::*;
 
 pub(crate) type BoxModuleService<Req, Resp> =
     tower::util::BoxService<ModuleRequest<Req>, ModuleResponse<Resp>, ModuleError>;
-
 
 pub struct ModulesRegistry<Req, Resp> {
     modules: RwLock<HashMap<String, Arc<Mutex<BoxModuleService<Req, Resp>>>>>,

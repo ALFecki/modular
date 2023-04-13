@@ -5,7 +5,6 @@ mod module;
 use crate::module::NativeCModule;
 use bytes::Bytes;
 use futures::Sink;
-use modular_rs::core::modules::Module;
 use modular_core::modules::*;
 use modular_rs::core::Modular;
 use modular_sys::*;
@@ -19,6 +18,7 @@ use std::ptr::{drop_in_place, null, null_mut};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::runtime::Runtime;
+use modular_core::module::Module;
 
 #[macro_export]
 macro_rules! cstr_to_string {
@@ -304,7 +304,7 @@ pub unsafe extern "system" fn __modular_get_module_ref(
     #[derive(Clone)]
     pub struct RtModule {
         runtime: Weak<Runtime>,
-        module: Module<Bytes, Bytes>,
+        module: modular_rs::core::modules::Module<Bytes, Bytes>,
     }
 
     let name = cstr_to_str!(name).expect("name can't be empty");
@@ -350,12 +350,13 @@ pub unsafe extern "system" fn __modular_get_module_ref(
                 task: Box::pin(async move {
                     match module.invoke(ModuleRequest::new(&action, data)).await {
                         Ok(response) => {
-                            let buf = CBuf {
-                                data: response.data.as_ptr(),
-                                len: response.data.len(),
-                            };
-
-                            (callback.success)(callback.ptr, buf)
+                            if let Ok(response) = response.await {
+                                let buf = CBuf {
+                                    data: response.data.as_ptr(),
+                                    len: response.data.len(),
+                                };
+                                (callback.success)(callback.ptr, buf)
+                            }
                         }
                         Err(error) => match error {
                             ModuleError::UnknownMethod => (callback.unknown_method)(callback.ptr),

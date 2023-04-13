@@ -1,4 +1,4 @@
-use crate::core::{BoxModule, Modular, Module};
+use crate::core::{BoxModule, Modular};
 use crate::{
     CBuf, CCallback, CModule, CModuleError, CModuleRef, CSubscribe, CSubscriptionRef,
     NativeModularVTable, Obj,
@@ -8,6 +8,8 @@ use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 use futures_util::{FutureExt, Stream, StreamExt};
 use modular_core::error::*;
+use modular_core::module::Module;
+use modular_core::modules::{ModuleRequest, ModuleResponse};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::collections::VecDeque;
@@ -93,7 +95,7 @@ impl Modular for LibraryModular {
 
     fn register_module<S>(&self, name: &str, service: S)
     where
-        S: Service<(String, Bytes), Response = Bytes, Error =ModuleError> + 'static + Send + Sync,
+        S: Service<(String, Bytes), Response = Bytes, Error = ModuleError> + 'static + Send + Sync,
         S::Future: Send + Sync + 'static,
     {
         let inner = NativeModuleInner { service };
@@ -227,7 +229,7 @@ struct NativeModuleInner<S> {
 
 impl<S> NativeModule<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error =ModuleError> + Send + Sync + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = ModuleError> + Send + Sync + 'static,
     S::Future: Future<Output = Result<Bytes, ModuleError>> + Send + Sync + 'static,
 {
     unsafe extern "system" fn on_invoke(
@@ -283,7 +285,7 @@ where
 
 impl<S> Service<(String, Bytes)> for NativeModuleInner<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error =ModuleError> + 'static,
+    S: Service<(String, Bytes), Response = Bytes, Error = ModuleError> + 'static,
     S::Future: Send + Sync + 'static,
 {
     type Response = Bytes;
@@ -316,10 +318,10 @@ impl Clone for ModuleRef {
 }
 
 impl Module for ModuleRef {
-    type Future = BoxFuture<'static, Result<Bytes, ModuleError>>;
+    type Future = BoxFuture<'static, Result<ModuleResponse, ModuleError>>;
 
-    fn invoke(&self, method: &str, data: Bytes) -> Self::Future {
-        let method = CString::new(method).unwrap();
+    fn invoke(&self, req: ModuleRequest<Bytes>) -> Self::Future {
+        let method = CString::new(req.action).unwrap();
 
         let inner = self.0;
 
@@ -335,8 +337,8 @@ impl Module for ModuleRef {
             };
 
             let buf = CBuf {
-                data: data.as_ptr(),
-                len: data.len(),
+                data: req.body.as_ptr(),
+                len: req.body.len(),
             };
 
             unsafe { (inner.vtable.invoke)(inner.ptr, method.as_ptr(), buf, callback) }
@@ -347,11 +349,11 @@ impl Module for ModuleRef {
 
 struct ModuleCallbackFutureState {
     waker: Waker,
-    data: Arc<Mutex<Option<Result<Bytes, ModuleError>>>>,
+    data: Arc<Mutex<Option<Result<ModuleResponse, ModuleError>>>>,
 }
 
 impl ModuleCallbackFutureState {
-    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<Bytes, ModuleError>>(
+    unsafe extern "system" fn with<F: FnOnce(&Self) -> Result<ModuleResponse, ModuleError>>(
         obj: Obj,
         f: F,
     ) {
@@ -365,7 +367,9 @@ impl ModuleCallbackFutureState {
     }
 
     unsafe extern "system" fn on_success(this: Obj, data: CBuf) {
-        let data = Bytes::copy_from_slice(std::slice::from_raw_parts(data.data, data.len));
+        let data = ModuleResponse::new(Bytes::copy_from_slice(std::slice::from_raw_parts(
+            data.data, data.len,
+        )));
 
         Self::with(this, |state| Ok(data));
     }
@@ -404,7 +408,7 @@ where
     F: FnOnce(ModuleCallbackFutureState),
 {
     f: Option<F>,
-    state: Arc<Mutex<Option<Result<Bytes, ModuleError>>>>,
+    state: Arc<Mutex<Option<Result<ModuleResponse, ModuleError>>>>,
 }
 
 impl<F> ModuleCallbackFuture<F>
@@ -420,7 +424,7 @@ where
 }
 
 impl<F: FnOnce(ModuleCallbackFutureState) + Unpin> Future for ModuleCallbackFuture<F> {
-    type Output = Result<Bytes, ModuleError>;
+    type Output = Result<ModuleResponse, ModuleError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(v) = self.f.take() {

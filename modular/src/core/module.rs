@@ -1,8 +1,8 @@
-use modular_core::error::ModuleError;
 use crate::core::modules::BoxModuleService;
-use modular_core::modules::{ModuleResponse, ModuleRequest};
 use futures_util::future::BoxFuture;
-use futures_util::TryFutureExt;
+use futures_util::{FutureExt, TryFutureExt};
+use modular_core::error::ModuleError;
+use modular_core::modules::{ModuleRequest, ModuleResponse};
 use std::marker::PhantomData;
 use std::sync::Weak;
 use std::task::{Context, Poll};
@@ -12,20 +12,26 @@ use tower::Service;
 #[derive(Clone)]
 pub struct Module<Request, Response>(pub(crate) Weak<Mutex<BoxModuleService<Request, Response>>>);
 
-impl<Request, Response> Module<Request, Response> {
-    pub async fn invoke(
-        &self,
-        req: ModuleRequest<Request>,
-    ) -> Result<ModuleResponse<Response>, ModuleError> {
+impl<Request, Response> modular_core::module::Module<Request, Response>
+    for Module<Request, Response>
+where
+    Response: Send + 'static,
+    Request: Send + 'static,
+{
+    type Future =
+        BoxFuture<'static, Result<BoxFuture<'static, Result<ModuleResponse<Response>, ModuleError>>, ModuleError>>;
+
+    fn invoke(&self, req: ModuleRequest<Request>) -> Self::Future {
         let module = match self.0.upgrade() {
             Some(v) => v,
             None => {
-                return Err(ModuleError::Destroyed);
+                return futures::future::err(ModuleError::Destroyed).boxed();
             }
         };
-
-        let mut v = module.lock().await;
-        v.call(req).await
+        async move {
+            let mut v = module.lock().await;
+            Ok(v.call(req))
+        }.boxed()
     }
 }
 

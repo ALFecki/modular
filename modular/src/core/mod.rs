@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use futures::Sink;
+use modular_core::modules::*;
 use std::sync::Arc;
 use tower::Service;
-use modular_core::modules::*;
 
 pub mod events;
 mod module;
