@@ -23,20 +23,58 @@ pub struct Modular {
     events: Arc<events::EventsManager<Bytes>>,
 }
 
-impl Modular {
-    pub fn register_module<S, Request>(&self, name: &str, svc: S) -> Result<(), RegistryError>
+impl modular_core::modular::Modular for Modular {
+    type Stream = ();
+    type Module = Module<Bytes, Bytes>;
+
+    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
     where
-        S: Service<Request> + Send + 'static,
         Request: From<ModuleRequest<Bytes>> + Send + 'static,
-        S::Response: Into<ModuleResponse<Bytes>> + Send + 'static,
+        S: Service<Request> + 'static + Send + Sync,
+        S::Response: Into<ModuleResponse> + Send + 'static,
         S::Error: Into<ModuleError> + Send + 'static,
         S::Future: Send + Sync + 'static,
     {
-        self.modules.register(name, svc)?;
-
+        self.modules.register(name, service)?;
         Ok(())
     }
 
+    fn subscribe<S, Err>(
+        &self,
+        topic: &str,
+        sink: Option<S>,
+    ) -> Result<Self::Stream, SubscribeError>
+    where
+        S: Sink<(String, Bytes), Error = Err> + Send + Sync + 'static,
+    {
+        if let Some(sink) = sink {
+            let pattern = Pattern::parse(topic).map_err(SubscribeError::InvalidPattern)?;
+            self.events.subscribe(pattern, sink);
+        }
+        Ok(())
+    }
+
+    fn publish<Request>(&self, event: Request)
+    where
+        Request: Into<ModuleRequest<Bytes>>,
+    {
+        let event = event.into();
+        if event.action.starts_with("$.sys.") {
+            return;
+        }
+        self.publish_event_inner(event.action(), event.body.clone());
+    }
+
+    fn get_module(&self, name: &str) -> Option<Self::Module> {
+        self.modules.get(name)
+    }
+
+    fn deregister_module(&self, name: &str) {
+        self.modules.remove(name);
+    }
+}
+
+impl Modular {
     pub fn register_or_replace_module<S, Request>(&self, name: &str, svc: S)
     where
         S: Service<Request> + Send + 'static,
@@ -46,32 +84,6 @@ impl Modular {
         S::Future: Send + Sync + 'static,
     {
         self.modules.register_or_replace(name, svc);
-    }
-
-    pub fn remove_module(&self, name: &str) {
-        self.modules.remove(name);
-    }
-
-    pub fn get_module(&self, name: &str) -> Option<Module<Bytes, Bytes>> {
-        self.modules.get(name)
-    }
-
-    pub fn subscribe<S, Err>(&self, name: &str, sink: S) -> Result<(), SubscribeError>
-    where
-        S: Sink<(String, Bytes), Error = Err> + Send + Sync + 'static,
-    {
-        let pattern = Pattern::parse(name).map_err(SubscribeError::InvalidPattern)?;
-        self.events.subscribe(pattern, sink);
-
-        Ok(())
-    }
-
-    pub fn publish_event<E: Into<Bytes>>(&self, path: &str, event: E) {
-        if path.starts_with("$.sys.") {
-            return;
-        }
-
-        self.publish_event_inner(path, event.into());
     }
 
     fn publish_event_inner(&self, path: &str, event: Bytes) {

@@ -5,8 +5,9 @@ mod module;
 use crate::module::NativeCModule;
 use bytes::Bytes;
 use futures::Sink;
+use modular_core::modular::Modular;
+use modular_core::module::Module;
 use modular_core::modules::*;
-use modular_rs::core::Modular;
 use modular_sys::*;
 use parking_lot::RwLock;
 use std::ffi::{CStr, CString};
@@ -18,7 +19,6 @@ use std::ptr::{drop_in_place, null, null_mut};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::runtime::Runtime;
-use modular_core::module::Module;
 
 #[macro_export]
 macro_rules! cstr_to_string {
@@ -40,7 +40,7 @@ macro_rules! cstr_to_str {
 
 pub struct NativeModular {
     tokio_runtime: Arc<Runtime>,
-    modular: Modular,
+    modular: modular_rs::core::Modular,
 }
 
 #[repr(C)]
@@ -96,7 +96,7 @@ pub unsafe extern "system" fn __modular_create(threads: u32) -> *mut NativeModul
             .unwrap()
     };
 
-    let modular = Modular::default();
+    let modular = modular_rs::core::Modular::default();
 
     Box::into_raw(Box::new(NativeModular {
         tokio_runtime: Arc::new(runtime),
@@ -222,7 +222,7 @@ pub unsafe extern "system" fn __modular_events_subscribe(
     let handle = modular.tokio_runtime.handle();
     let _guard = handle.enter();
 
-    match modular.modular.subscribe(&topic, subscribe) {
+    match modular.modular.subscribe(&topic, Some(subscribe)) {
         Ok(_) => {
             *subscription = subscription_ref;
 
@@ -246,7 +246,7 @@ pub unsafe extern "system" fn __modular_events_publish(
     let topic = cstr_to_str!(topic).expect("topic must not be null");
     let bytes = Bytes::copy_from_slice(std::slice::from_raw_parts(buf.data, buf.len));
 
-    modular.modular.publish_event(&topic, bytes)
+    modular.modular.publish(ModuleRequest::new(&topic, bytes))
 }
 
 pub unsafe extern "system" fn __modular_events_unsubscribe(subscription: Obj) {
@@ -287,7 +287,7 @@ pub unsafe extern "system" fn __modular_remove_module(
     name: *const c_char,
 ) {
     if let Some(v) = cstr_to_str!(name) {
-        modular.modular.remove_module(&v)
+        modular.modular.deregister_module(&v)
     }
 }
 

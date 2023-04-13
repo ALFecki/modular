@@ -1,4 +1,3 @@
-use crate::core::{BoxModule, Modular};
 use crate::{
     CBuf, CCallback, CModule, CModuleError, CModuleRef, CSubscribe, CSubscriptionRef,
     NativeModularVTable, Obj,
@@ -6,8 +5,9 @@ use crate::{
 use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
-use futures_util::{FutureExt, Stream, StreamExt};
+use futures_util::{FutureExt, Sink, Stream, StreamExt};
 use modular_core::error::*;
+use modular_core::modular::{BoxModule, Modular};
 use modular_core::module::Module;
 use modular_core::modules::{ModuleRequest, ModuleResponse};
 use once_cell::sync::OnceCell;
@@ -51,9 +51,48 @@ impl LibraryModular {
         Ok(Self { ptr, vtable })
     }
 }
-
 impl Modular for LibraryModular {
-    fn subscribe(&self, topic: &str) -> anyhow::Result<BoxStream<'static, (String, Bytes)>> {
+    type Stream = BoxStream<'static, (String, Bytes)>;
+    type Module = BoxModule;
+
+    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
+    where
+        Request: From<ModuleRequest<Bytes>> + Send + 'static,
+        S: Service<Request> + 'static + Send + Sync,
+        S::Response: Into<ModuleResponse> + Send + 'static,
+        S::Error: Into<ModuleError> + Send + 'static,
+        S::Future: Send + Sync + 'static,
+    {
+        let inner = NativeModuleInner { service };
+        let module = NativeModule {
+            inner: Arc::new(Mutex::new(inner)),
+            handle: Handle::current(),
+        };
+        let module = Box::into_raw(Box::new(module));
+
+        let module = CModule {
+            ptr: Obj(module.cast()),
+            on_invoke: NativeModule::<S>::on_invoke,
+            on_drop: NativeModule::<S>::on_drop,
+        };
+
+        let name = CString::new(name.to_string()).unwrap();
+
+        let res = unsafe { (self.vtable.register_module)(self.ptr, name.as_ptr(), module, false) };
+        match res {
+            0 => Ok(()),
+            _ => Err(RegistryError::AlreadyExists),
+        }
+    }
+
+    fn subscribe<S, Err>(
+        &self,
+        topic: &str,
+        _sink: Option<S>,
+    ) -> Result<Self::Stream, SubscribeError>
+    where
+        S: Sink<(String, Bytes), Error = Err> + Send + Sync + 'static,
+    {
         let topic = CString::new(topic.to_string()).unwrap();
         let sink = NativeSubscriberSink {
             state: Arc::new(Mutex::new(SubscriberState {
@@ -83,42 +122,21 @@ impl Modular for LibraryModular {
         Ok(stream.boxed())
     }
 
-    fn publish(&self, topic: &str, data: Bytes) {
-        let topic = CString::new(topic.to_string()).unwrap();
+    fn publish<Request>(&self, event: Request)
+    where
+        Request: Into<ModuleRequest<Bytes>>,
+    {
+        let event = event.into();
+        let topic = CString::new(event.action.to_string()).unwrap();
         let buf = CBuf {
-            data: data.as_ptr(),
-            len: data.len(),
+            data: event.body.as_ptr(),
+            len: event.body.len(),
         };
 
         unsafe { (self.vtable.publish)(self.ptr, topic.as_ptr(), buf) }
     }
 
-    fn register_module<S>(&self, name: &str, service: S)
-    where
-        S: Service<(String, Bytes), Response = Bytes, Error = ModuleError> + 'static + Send + Sync,
-        S::Future: Send + Sync + 'static,
-    {
-        let inner = NativeModuleInner { service };
-        let module = NativeModule {
-            inner: Arc::new(Mutex::new(inner)),
-            handle: Handle::current(),
-        };
-        let module = Box::into_raw(Box::new(module));
-
-        let module = CModule {
-            ptr: Obj(module.cast()),
-            on_invoke: NativeModule::<S>::on_invoke,
-            on_drop: NativeModule::<S>::on_drop,
-        };
-
-        let name = CString::new(name.to_string()).unwrap();
-
-        unsafe {
-            (self.vtable.register_module)(self.ptr, name.as_ptr(), module, false);
-        }
-    }
-
-    fn get_module(&self, name: &str) -> Option<BoxModule> {
+    fn get_module(&self, name: &str) -> Option<Self::Module> {
         let name = CString::new(name.to_string()).unwrap();
         let module = unsafe { (self.vtable.get_module_ref)(self.ptr, name.as_ptr()) };
 
@@ -229,8 +247,10 @@ struct NativeModuleInner<S> {
 
 impl<S> NativeModule<S>
 where
-    S: Service<(String, Bytes), Response = Bytes, Error = ModuleError> + Send + Sync + 'static,
-    S::Future: Future<Output = Result<Bytes, ModuleError>> + Send + Sync + 'static,
+    S: Service<ModuleRequest> + Send + Sync + 'static,
+    S::Response: Into<ModuleResponse> + Send + 'static,
+    S::Error: Into<ModuleError>,
+    S::Future: Future<Output = Result<ModuleResponse, ModuleError>> + Send + Sync + 'static,
 {
     unsafe extern "system" fn on_invoke(
         ptr: Obj,
@@ -247,12 +267,15 @@ where
 
         spawn(async move {
             let mut service = service.lock();
-            let v = service.service.call((method, data)).await;
+            let v = service
+                .service
+                .call(ModuleRequest::new(&method, data))
+                .await;
             match v {
                 Ok(v) => unsafe {
                     let buf = CBuf {
-                        data: v.as_ptr(),
-                        len: v.len(),
+                        data: v.data.as_ptr(),
+                        len: v.data.len(),
                     };
 
                     (callback.success)(callback.ptr, buf)

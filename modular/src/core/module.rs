@@ -18,8 +18,10 @@ where
     Response: Send + 'static,
     Request: Send + 'static,
 {
-    type Future =
-        BoxFuture<'static, Result<BoxFuture<'static, Result<ModuleResponse<Response>, ModuleError>>, ModuleError>>;
+    type Future = BoxFuture<
+        'static,
+        Result<BoxFuture<'static, Result<ModuleResponse<Response>, ModuleError>>, ModuleError>,
+    >;
 
     fn invoke(&self, req: ModuleRequest<Request>) -> Self::Future {
         let module = match self.0.upgrade() {
@@ -31,7 +33,8 @@ where
         async move {
             let mut v = module.lock().await;
             Ok(v.call(req))
-        }.boxed()
+        }
+        .boxed()
     }
 }
 
