@@ -1,3 +1,4 @@
+use std::future::Future;
 use crate::module::Module;
 use crate::modules::*;
 use bytes::Bytes;
@@ -12,13 +13,12 @@ pub trait Modular: Send + Sync {
     type Stream: Send + 'static;
     type Module;
 
-    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
+    fn register_module<S>(&self, name: &str, service: S) -> Result<(), RegistryError>
     where
-        Request: From<ModuleRequest<Bytes>> + Send + 'static,
-        S: Service<Request> + 'static + Send + Sync,
+        S: Service<ModuleRequest> + 'static + Send + Sync,
         S::Response: Into<ModuleResponse> + Send + 'static,
         S::Error: Into<ModuleError> + Send + 'static,
-        S::Future: Send + Sync + 'static;
+        S::Future: Future<Output = Result<ModuleResponse, ModuleError>> + Send + Sync + 'static;
 
     fn subscribe<S, Err>(
         &self,

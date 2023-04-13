@@ -1,3 +1,4 @@
+use std::future::Future;
 use bytes::Bytes;
 use futures::Sink;
 use modular_core::modules::*;
@@ -27,13 +28,12 @@ impl modular_core::modular::Modular for Modular {
     type Stream = ();
     type Module = Module<Bytes, Bytes>;
 
-    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
+    fn register_module<S>(&self, name: &str, service: S) -> Result<(), RegistryError>
     where
-        Request: From<ModuleRequest<Bytes>> + Send + 'static,
-        S: Service<Request> + 'static + Send + Sync,
+        S: Service<ModuleRequest> + 'static + Send + Sync,
         S::Response: Into<ModuleResponse> + Send + 'static,
         S::Error: Into<ModuleError> + Send + 'static,
-        S::Future: Send + Sync + 'static,
+        S::Future: Future<Output = Result<ModuleResponse, ModuleError>> + Send + Sync + 'static,
     {
         self.modules.register(name, service)?;
         Ok(())
