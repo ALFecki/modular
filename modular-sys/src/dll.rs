@@ -55,13 +55,12 @@ impl Modular for LibraryModular {
     type Stream = BoxStream<'static, (String, Bytes)>;
     type Module = BoxModule;
 
-    fn register_module<S, Request>(&self, name: &str, service: S) -> Result<(), RegistryError>
+    fn register_module<S>(&self, name: &str, service: S) -> Result<(), RegistryError>
     where
-        Request: From<ModuleRequest<Bytes>> + Send + 'static,
-        S: Service<Request> + 'static + Send + Sync,
+        S: Service<ModuleRequest> + 'static + Send + Sync,
         S::Response: Into<ModuleResponse> + Send + 'static,
         S::Error: Into<ModuleError> + Send + 'static,
-        S::Future: Send + Sync + 'static,
+        S::Future: Future<Output = Result<ModuleResponse, ModuleError>> + Send + Sync + 'static,
     {
         let inner = NativeModuleInner { service };
         let module = NativeModule {
@@ -235,7 +234,7 @@ impl Stream for SubscriberStream {
     }
 }
 
-struct NativeModule<S> {
+struct NativeModule<S> where {
     inner: Arc<Mutex<NativeModuleInner<S>>>,
     handle: Handle,
 }
