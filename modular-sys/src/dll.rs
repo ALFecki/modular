@@ -234,7 +234,7 @@ impl Stream for SubscriberStream {
     }
 }
 
-struct NativeModule<S> where {
+struct NativeModule<S> {
     inner: Arc<Mutex<NativeModuleInner<S>>>,
     handle: Handle,
 }

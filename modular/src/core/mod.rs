@@ -1,7 +1,7 @@
-use std::future::Future;
 use bytes::Bytes;
 use futures::Sink;
 use modular_core::modules::*;
+use std::future::Future;
 use std::sync::Arc;
 use tower::Service;
 

@@ -1,9 +1,9 @@
-use std::future::Future;
 use crate::module::Module;
 use crate::modules::*;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::Sink;
+use std::future::Future;
 use tower::Service;
 
 pub type BoxModule =
