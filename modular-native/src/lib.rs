@@ -1,5 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
+mod modular;
 mod module;
 
 use crate::module::NativeCModule;
@@ -10,7 +11,7 @@ use modular_core::module::Module;
 use modular_core::modules::*;
 use modular_sys::*;
 use parking_lot::RwLock;
-use std::ffi::{CStr, CString};
+use std::ffi::{c_void, CStr, CString};
 use std::future::Future;
 use std::os::raw::c_char;
 use std::panic::catch_unwind;
@@ -44,23 +45,23 @@ pub struct NativeModular {
 }
 
 #[repr(C)]
-pub struct VTable<M> {
-    create_instance: unsafe extern "system" fn(threads: u32) -> *mut M,
-    destroy_instance: unsafe extern "system" fn(modular: *mut M),
+pub struct VTable {
+    create_instance: unsafe extern "system" fn(threads: u32) -> *mut c_void,
+    destroy_instance: unsafe extern "system" fn(modular: *mut c_void),
     subscribe: unsafe extern "system" fn(
-        modular: &M,
+        modular: &c_void,
         subscribe: CSubscribe,
         subscription: *mut CSubscriptionRef,
     ) -> i32,
-    publish: unsafe extern "system" fn(modular: &M, topic: *const c_char, data: CBuf),
+    publish: unsafe extern "system" fn(modular: &c_void, topic: *const c_char, data: CBuf),
     register_module: unsafe extern "system" fn(
-        modular: &M,
+        modular: &c_void,
         name: *const c_char,
         module: CModule,
         replace: bool,
     ) -> i32,
-    remove_module: unsafe extern "system" fn(modular: &M, name: *const c_char),
-    get_module_ref: unsafe extern "system" fn(modular: &M, name: *const c_char) -> CModuleRef,
+    remove_module: unsafe extern "system" fn(modular: &c_void, name: *const c_char),
+    get_module_ref: unsafe extern "system" fn(modular: &c_void, name: *const c_char) -> CModuleRef,
 }
 
 #[no_mangle]
