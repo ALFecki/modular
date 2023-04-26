@@ -1,15 +1,9 @@
-use crate::{cstr_to_str, cstr_to_string, CStr, Subscribe, Subscription, VTable};
+use crate::{cstr_to_str, cstr_to_string, CStr, Subscribe, Subscription};
 use bytes::Bytes;
-use futures::Sink;
-use modular_core::error::{ModuleError, RegistryError, SubscribeError};
 use modular_core::modular::Modular;
-use modular_core::modules::{ModuleRequest, ModuleResponse};
+use modular_core::modules::ModuleRequest;
 use modular_sys::{CBuf, CModule, CModuleRef, CSubscribe, CSubscriptionRef};
-use std::ffi::{c_char, c_void};
-use std::future::Future;
-use std::io::Read;
-use std::ops::Deref;
-use tower::Service;
+use std::ffi::c_char;
 
 pub struct CObj<T>(pub *mut T);
 
@@ -20,13 +14,13 @@ pub struct CModularVTable<V> {
     create_instance: unsafe extern "system" fn(threads: u32) -> CObj<V>,
     destroy_instance: unsafe extern "system" fn(modular: CObj<V>),
     subscribe: unsafe extern "system" fn(
-        modular: &CObj<V>,
+        modular: &V,
         subscribe: CSubscribe,
         subscription: *mut CSubscriptionRef,
     ) -> i32,
-    publish: unsafe extern "system" fn(modular: &CObj<V>, topic: *const c_char, data: CBuf),
+    publish: unsafe extern "system" fn(modular: &V, topic: *const c_char, data: CBuf),
     register_module: unsafe extern "system" fn(
-        modular: &CObj<V>,
+        modular: &V,
         name: *const c_char,
         module: CModule,
         replace: bool,
@@ -74,14 +68,11 @@ impl<V: Modular + Default> CModularVTable<V> {
     }
 
     unsafe extern "system" fn subscribe(
-        modular: &CObj<V>,
+        modular: &V,
         subscribe: CSubscribe,
         subscription: *mut CSubscriptionRef,
     ) -> i32 {
         let res = modular
-            .0
-            .as_mut()
-            .unwrap()
             .subscribe::<Subscribe, ()>(&cstr_to_str!(subscribe.topic).unwrap(), None);
         match res {
             Ok(_) => 0,
@@ -89,9 +80,9 @@ impl<V: Modular + Default> CModularVTable<V> {
         }
     }
 
-    unsafe extern "system" fn publish(modular: &CObj<V>, topic: *const c_char, data: CBuf) {
+    unsafe extern "system" fn publish(modular: &V, topic: *const c_char, data: CBuf) {
         if let Some(action) = cstr_to_string!(topic) {
-            modular.0.as_mut().unwrap().publish(ModuleRequest::<Bytes> {
+            modular.publish(ModuleRequest::<Bytes> {
                 action,
                 body: Bytes::copy_from_slice(std::slice::from_raw_parts(data.data, data.len)),
             })
@@ -99,16 +90,16 @@ impl<V: Modular + Default> CModularVTable<V> {
     }
 
     unsafe extern "system" fn register_module(
-        modular: &CObj<V>,
+        modular: &V,
         name: *const c_char,
         module: CModule,
         replace: bool,
     ) -> i32 {
         // if let Some(name) = cstr_to_str!(name) {
-        //     match modular.0.as_mut().unwrap().register_module(&*name, module.ptr) {
+        //     return match modular.register_module(&*name, module.ptr) {
         //         Ok(_) => 0,
         //         Err(_) => -1,
-        //     }
+        //     };
         // }
         -1
     }
@@ -132,76 +123,67 @@ impl<V: Modular + Default> CModular<V> {
 unsafe impl<V> Send for CModular<V> {}
 unsafe impl<V> Sync for CModular<V> {}
 
-// impl<V: Modular> CModularVTable<V> {
-//     pub fn new() -> Self {
-//         Self {
-//             register_modular:  CModularVTable::<V>::register_modular
-//         }
-//     }
-//
-//     unsafe extern "C" fn register_modular<S>(this: *mut V, name: &str, service: S) -> Result<(), RegistryError> {
-//         let this = &mut *this;
-//         this.register_module(name, service)
-//     }
-// }
-
 pub trait ModularNativeExt<M> {
-    unsafe extern "C" fn __modular_create(threads: u32) -> *mut M;
-    unsafe extern "system" fn __modular_destroy(modular: *mut M);
+    unsafe extern "C" fn __modular_create(&self, threads: u32) -> *mut M;
+    unsafe extern "system" fn __modular_destroy(&self, modular: *mut M);
     unsafe extern "system" fn __modular_events_subscribe(
+        &self,
         modular: &M,
         subscribe: CSubscribe,
         subscription: *mut CSubscriptionRef,
     ) -> i32;
     unsafe extern "system" fn __modular_events_publish(
+        &self,
         modular: &M,
         topic: *const c_char,
         buf: CBuf,
     );
-    unsafe extern "system" fn __modular_events_unsubscribe(subscription: *mut Subscription);
+    unsafe extern "system" fn __modular_events_unsubscribe(&self, subscription: *mut Subscription);
     unsafe extern "system" fn __modular_register_module(
+        &self,
         modular: &M,
         name: *const c_char,
         module: CModule,
         replace: bool,
     ) -> i32;
-    unsafe extern "system" fn __modular_remove_module(modular: &M, name: *const c_char);
+    unsafe extern "system" fn __modular_remove_module(&self, modular: &M, name: *const c_char);
     unsafe extern "system" fn __modular_get_module_ref(
+        &self,
         modular: &M,
         name: *const c_char,
     ) -> CModuleRef;
 }
 
-impl<V: 'static + Sized> ModularNativeExt<V> for CModularVTable<V> {
-    unsafe extern "C" fn __modular_create(threads: u32) -> *mut V {
-
+impl<V: 'static + Sized> ModularNativeExt<V> for CModular<V> {
+    unsafe extern "C" fn __modular_create(&self, threads: u32) -> *mut V {
+        (self.vtable.create_instance)(threads).0
     }
 
-    unsafe extern "system" fn __modular_destroy(modular: *mut V) {
+    unsafe extern "system" fn __modular_destroy(&self, modular: *mut V) {
+        (self.vtable.destroy_instance)(CObj(modular))
+    }
+
+    unsafe extern "system" fn __modular_events_subscribe(&self, modular: &V, subscribe: CSubscribe, subscription: *mut CSubscriptionRef) -> i32 {
+        (self.vtable.subscribe)(modular, subscribe, subscription)
+    }
+
+    unsafe extern "system" fn __modular_events_publish(&self, modular: &V, topic: *const c_char, buf: CBuf) {
+        (self.vtable.publish)(modular, topic, buf)
+    }
+
+    unsafe extern "system" fn __modular_events_unsubscribe(&self, subscription: *mut Subscription) {
         todo!()
     }
 
-    unsafe extern "system" fn __modular_events_subscribe(modular: &V, subscribe: CSubscribe, subscription: *mut CSubscriptionRef) -> i32 {
+    unsafe extern "system" fn __modular_register_module(&self, modular: &V, name: *const c_char, module: CModule, replace: bool) -> i32 {
+        (self.vtable.register_module)(modular, name, module, replace)
+    }
+
+    unsafe extern "system" fn __modular_remove_module(&self, modular: &V, name: *const c_char) {
         todo!()
     }
 
-    unsafe extern "system" fn __modular_events_publish(modular: &V, topic: *const c_char, buf: CBuf) {
-        todo!()
-    }
-
-    unsafe extern "system" fn __modular_events_unsubscribe(subscription: *mut Subscription) {
-        todo!()
-    }
-
-    unsafe extern "system" fn __modular_register_module(modular: &V, name: *const c_char, module: CModule, replace: bool) -> i32 {
-        todo!()
-    }
-
-    unsafe extern "system" fn __modular_remove_module(modular: &V, name: *const c_char) {
-        todo!()
-    }
-
-    unsafe extern "system" fn __modular_get_module_ref(modular: &V, name: *const c_char) -> CModuleRef {
+    unsafe extern "system" fn __modular_get_module_ref(&self, modular: &V, name: *const c_char) -> CModuleRef {
         todo!()
     }
 }
