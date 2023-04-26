@@ -13,6 +13,7 @@ modular-rs = { version = "0.1", path = "../modular" }
 modular-sys = { version = "0.1", path = "../modular-sys" }
 parking_lot = "0.12"
 tower = "0.4"
+tower-service = "0.3.2"
 
 bytes = "1"
 futures = { version = "0.3", features = [  ] }

@@ -64,20 +64,20 @@ pub struct VTable {
     get_module_ref: unsafe extern "system" fn(modular: &c_void, name: *const c_char) -> CModuleRef,
 }
 
-#[no_mangle]
-pub unsafe extern "system" fn __modular_vtable() -> *const NativeModularVTable {
-    static VTABLE: &VTable<NativeModular> = &VTable {
-        create_instance: __modular_create,
-        destroy_instance: __modular_destroy,
-        subscribe: __modular_events_subscribe,
-        publish: __modular_events_publish,
-        register_module: __modular_register_module,
-        remove_module: __modular_remove_module,
-        get_module_ref: __modular_get_module_ref,
-    };
-
-    VTABLE as *const VTable<_> as _
-}
+// #[no_mangle]
+// pub unsafe extern "system" fn __modular_vtable() -> *const NativeModularVTable {
+//     static VTABLE: &VTable<NativeModular> = &VTable {
+//         create_instance: __modular_create,
+//         destroy_instance: __modular_destroy,
+//         subscribe: __modular_events_subscribe,
+//         publish: __modular_events_publish,
+//         register_module: __modular_register_module,
+//         remove_module: __modular_remove_module,
+//         get_module_ref: __modular_get_module_ref,
+//     };
+//
+//     VTABLE as *const VTable<_> as _
+// }
 
 pub unsafe extern "system" fn __modular_create(threads: u32) -> *mut NativeModular {
     #[cfg(not(target_family = "wasm"))]
